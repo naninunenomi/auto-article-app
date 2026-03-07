@@ -50,9 +50,8 @@ export default function Home() {
       inputText = `参考URL: ${docUrl}`;
     }
 
-    // Load saved prompts
-    const saved = localStorage.getItem("app_prompts");
-    const customPrompts = saved ? JSON.parse(saved) : {
+    // Load saved prompts from API (Vercel KV)
+    let customPrompts: Record<string, string> = {
       phase2: "以下のリサーチ資料（Phase 1）と指定日時「[日付]」を元に、note掲載用の【無料版記事】を作成してください。\\n...",
       phase3: "以下のリサーチ資料と「無料版記事」の続きとして、【有料版記事】を作成してください。\\n...",
       phase4: "無料版と有料版を結合し、全体のフォーマットを整えてください。",
@@ -60,6 +59,16 @@ export default function Home() {
       phase6: "以下の校正済み原稿を元に、Podcast用のトークスクリプトを作成してください。",
       phase7: "以下の記事内容をプロモーションするためのX（Twitter）投稿文を複数作成してください。"
     };
+
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.prompts) {
+        customPrompts = data.prompts;
+      }
+    } catch (e) {
+      console.error("Failed to load prompts from API", e);
+    }
     const getPrompt = (key: string) => customPrompts[key] || "";
 
     setIsProcessing(true);

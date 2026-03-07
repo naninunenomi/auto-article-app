@@ -16,29 +16,46 @@ export default function SettingsPage() {
 
     const [prompts, setPrompts] = useState(defaultPrompts);
     const [isSaved, setIsSaved] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
-        const saved = localStorage.getItem("app_prompts");
-        if (saved) {
+        // Load from API instead of localStorage
+        const fetchPrompts = async () => {
             try {
-                setPrompts(JSON.parse(saved));
+                const res = await fetch("/api/settings");
+                const data = await res.json();
+                if (data.prompts) {
+                    setPrompts(data.prompts);
+                }
             } catch (e) {
-                console.error("Failed to parse saved prompts");
+                console.error("Failed to fetch prompts from API", e);
+            } finally {
+                setIsLoading(false);
             }
-        }
+        };
+        fetchPrompts();
     }, []);
 
     // Prevent hydration mismatch by rendering a placeholder until mounted
-    if (!isMounted) {
-        return null; // Or a loading spinner if preferred
+    if (!isMounted || isLoading) {
+        return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-teal-500">読み込み中...</div>;
     }
 
-    const handleSave = () => {
-        localStorage.setItem("app_prompts", JSON.stringify(prompts));
-        setIsSaved(true);
-        setTimeout(() => setIsSaved(false), 2000);
+    const handleSave = async () => {
+        try {
+            await fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompts })
+            });
+            setIsSaved(true);
+            setTimeout(() => setIsSaved(false), 2000);
+        } catch (e) {
+            console.error("Failed to save prompts via API", e);
+            alert("保存に失敗しました");
+        }
     };
 
     const handleChange = (key: keyof typeof prompts, value: string) => {
