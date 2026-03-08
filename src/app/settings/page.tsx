@@ -29,7 +29,7 @@ export default function SettingsPage() {
                 const res = await fetch("/api/settings");
                 const data = await res.json();
                 if (data.prompts) {
-                    setPrompts(data.prompts);
+                    setPrompts(prev => ({ ...prev, ...data.prompts }));
                 }
             } catch (e) {
                 console.error("Failed to fetch prompts from API", e);

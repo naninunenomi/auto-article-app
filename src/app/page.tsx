@@ -92,7 +92,7 @@ export default function Home() {
       const res = await fetch("/api/settings");
       const data = await res.json();
       if (data.prompts) {
-        customPrompts = data.prompts;
+        customPrompts = { ...customPrompts, ...data.prompts };
       }
     } catch (e) {
       console.error("Failed to load prompts from API", e);
