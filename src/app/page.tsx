@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import Link from 'next/link';
 import {
@@ -25,6 +25,17 @@ export default function Home() {
   const [currentPhase, setCurrentPhase] = useState(0);
   const [results, setResults] = useState<{ [key: string]: string }>({});
   const [activeTab, setActiveTab] = useState(2); // ID of the phase to show
+  const [appPrompts, setAppPrompts] = useState<Record<string, string>>({});
+
+  const downloadTxt = (filename: string, text: string) => {
+    const element = document.createElement("a");
+    const file = new Blob([text], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = filename;
+    document.body.appendChild(element); // Required for this to work in FireFox
+    element.click();
+    document.body.removeChild(element);
+  };
 
   // Enum like representation of phases to show progress
   const phases = [
@@ -35,6 +46,23 @@ export default function Home() {
     { id: 6, name: "Podcast作成", icon: <Mic className="w-5 h-5" /> },
     { id: 7, name: "X投稿文", icon: <Twitter className="w-5 h-5" /> },
   ];
+
+  // Try fetching existing results on mount
+  useEffect(() => {
+    const fetchResults = async () => {
+      try {
+        const res = await fetch("/api/results");
+        const data = await res.json();
+        if (data.results && Object.keys(data.results).length > 0) {
+          setResults(data.results);
+          setCurrentPhase(8); // Show results immediately if we have some
+        }
+      } catch (err) {
+        console.error("Failed to load last results", err);
+      }
+    };
+    fetchResults();
+  }, []);
 
   const handleStart = async () => {
     if (!docText && !docUrl) {
@@ -69,6 +97,7 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to load prompts from API", e);
     }
+    setAppPrompts(customPrompts);
     const getPrompt = (key: string) => customPrompts[key] || "";
 
     setIsProcessing(true);
@@ -166,7 +195,18 @@ export default function Home() {
         }
       }
 
-      // Final result saving logic here if needed
+      // Final result saving logic to KV
+      try {
+        await fetch("/api/results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ results: resultsRef })
+        });
+        console.log("Successfully saved results to KV");
+      } catch (err) {
+        console.error("Failed to save results to KV", err);
+      }
+
       alert("全フェーズの生成が完了しました！下部の「生成完了」から結果をご確認ください。");
     } catch (err: any) {
       alert("生成中にエラーが発生しました: " + err.message);
@@ -315,16 +355,59 @@ export default function Home() {
                 <h3 className="text-sm font-bold text-neutral-300">
                   {phases.find(p => p.id === activeTab)?.name}
                 </h3>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(results[`phase${activeTab}`] || "");
-                  }}
-                  className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <FileText className="w-3 h-3" />
-                  コピー
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const text = results[`phase${activeTab}`] || "";
+                      downloadTxt(`Phase${activeTab}_${phases.find(p => p.id === activeTab)?.name}.txt`, text);
+                    }}
+                    className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <FileText className="w-3 h-3" />
+                    ファイル保存 (.txt)
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(results[`phase${activeTab}`] || "");
+                      alert("コピーしました");
+                    }}
+                    className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                  >
+                    <FileText className="w-3 h-3" />
+                    コピー
+                  </button>
+                </div>
               </div>
+
+              {activeTab === 5 && (
+                <div className="mb-4 p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl space-y-2">
+                  <p className="text-xs text-teal-400 font-medium">✨ NotebookLM連携 (音声用)</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const prompt = appPrompts["notebookLM_A"] || "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。";
+                        const text = results[`phase5`] || "";
+                        navigator.clipboard.writeText(`【指示】\n${prompt}\n\n【原稿】\n${text}`);
+                        alert("NotebookLM用プロンプトAと原稿をセットでコピーしました！");
+                      }}
+                      className="flex-1 text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 px-3 py-2 rounded-lg transition-colors font-medium text-center"
+                    >
+                      🎙️ 音声用Aをコピー
+                    </button>
+                    <button
+                      onClick={() => {
+                        const prompt = appPrompts["notebookLM_B"] || "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。";
+                        const text = results[`phase5`] || "";
+                        navigator.clipboard.writeText(`【指示】\n${prompt}\n\n【原稿】\n${text}`);
+                        alert("NotebookLM用プロンプトBと原稿をセットでコピーしました！");
+                      }}
+                      className="flex-1 text-xs bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 px-3 py-2 rounded-lg transition-colors font-medium text-center"
+                    >
+                      🎙️ 音声用Bをコピー
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="bg-neutral-950 rounded-xl p-4 max-h-[400px] overflow-y-auto">
                 <pre className="text-sm text-neutral-300 whitespace-pre-wrap font-sans leading-relaxed">
                   {results[`phase${activeTab}`] || "生成データがありません"}

@@ -11,7 +11,9 @@ export default function SettingsPage() {
         phase4: "無料版と有料版を結合し、全体のフォーマットを整えてください。",
         phase5: "以下の完成原稿について、誤字脱字やトーンマナーを校正してください。",
         phase6: "以下の校正済み原稿を元に、Podcast用のトークスクリプトを作成してください。",
-        phase7: "以下の記事内容をプロモーションするためのX（Twitter）投稿文を複数作成してください。"
+        phase7: "以下の記事内容をプロモーションするためのX（Twitter）投稿文を複数作成してください。",
+        notebookLM_A: "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。",
+        notebookLM_B: "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。"
     };
 
     const [prompts, setPrompts] = useState(defaultPrompts);
@@ -98,14 +100,20 @@ export default function SettingsPage() {
 
                 <div className="space-y-6">
                     {Object.entries(prompts).map(([key, value]) => {
+                        const isNotebookLM = key.startsWith("notebookLM");
                         const phaseNumber = key.replace("phase", "");
+                        const labelName = isNotebookLM
+                            ? `NotebookLM 音声用プロンプト ${key.split("_")[1]}`
+                            : `Phase ${phaseNumber} プロンプト`;
+                        const iconText = isNotebookLM ? "N" : phaseNumber;
+
                         return (
                             <div key={key} className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-teal-400">
                                     <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-500/20 text-xs">
-                                        {phaseNumber}
+                                        {iconText}
                                     </span>
-                                    Phase {phaseNumber} プロンプト
+                                    {labelName}
                                 </label>
                                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
                                     <textarea
