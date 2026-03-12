@@ -20,6 +20,8 @@ import {
 export default function Home() {
   const [docUrl, setDocUrl] = useState("");
   const [docText, setDocText] = useState("");
+  const [configUrl, setConfigUrl] = useState(""); // V5: Configuration/Flag URL
+  const [configText, setConfigText] = useState(""); // V5: Configuration/Flag Text
   const [targetDate, setTargetDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(0);
@@ -70,12 +72,15 @@ export default function Home() {
       return;
     }
 
-    // In actual implementation, we might fetch document data here if a URL is provided
+    // Prepare inputs
     let inputText = docText;
     if (docUrl && !docText) {
-      // For demonstration, we just use the URL as context if text is empty
-      alert("注意: URLのみが入力された場合、ドキュメントの自動取得にはGoogle Drive連携が必要ですが、今回は直接入力テキストを推奨します。デモとしてURLテキストを前提に進めます。");
-      inputText = `参考URL: ${docUrl}`;
+      inputText = `参考URL (リサーチ結果): ${docUrl}`;
+    }
+
+    let configInput = configText;
+    if (configUrl && !configText) {
+      configInput = `参考URL (構成案・フラグ情報): ${configUrl}`;
     }
 
     // Load saved prompts from API (Vercel KV)
@@ -120,12 +125,12 @@ export default function Home() {
 
         switch (i) {
           case 2:
-            // Phase 2: Needs Phase 1 (inputText)
-            inputForPhase = `【元データ（リサーチ結果）】\n${inputText}`;
+            // Phase 2: Needs Phase 1 (inputText) and V5 Configuration
+            inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}`;
             break;
           case 3:
-            // Phase 3: Needs Phase 1 and Phase 2
-            inputForPhase = `【元データ（リサーチ結果）】\n${inputText}\n\n【Phase 2の結果（無料版記事）】\n${resultsRef["phase2"]}`;
+            // Phase 3: Needs Phase 1, Phase 2, and V5 Configuration
+            inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}\n\n【Phase 2の結果（無料版記事）】\n${resultsRef["phase2"]}`;
             break;
           case 4:
             // Phase 4: Needs Phase 2 and Phase 3
@@ -234,14 +239,47 @@ export default function Home() {
 
       <main className="px-6 py-8 max-w-md mx-auto space-y-8">
 
-        {/* Step 1: Input Deep Research */}
+        {/* Step 1: Configuration / Flag Input (V5) */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">1</span>
+            <h2 className="text-lg font-semibold">構成案・フラグ情報の入力</h2>
+          </div>
+          <p className="text-sm text-neutral-400 leading-relaxed">
+            無料版（x）や有料版（y）の指定が含まれる構成案ドキュメントを入力してください。
+          </p>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
+            <textarea
+              value={configText}
+              onChange={(e) => setConfigText(e.target.value)}
+              placeholder="構成案（フラグ情報）をここにペースト..."
+              className="w-full h-24 bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none resize-none p-3 text-sm"
+            />
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FileText className="h-5 w-5 text-neutral-500" />
+            </div>
+            <input
+              type="url"
+              value={configUrl}
+              onChange={(e) => setConfigUrl(e.target.value)}
+              className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
+              placeholder="GoogleドキュメントのURL（構成案）"
+            />
+          </div>
+        </section>
+
+        {/* Step 2: Input Deep Research */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">2</span>
             <h2 className="text-lg font-semibold">リサーチ結果の入力</h2>
           </div>
           <p className="text-sm text-neutral-400 leading-relaxed">
-            手動で実行したDeep Researchの結果（Phase 1）を貼り付けてください。ドキュメントURLでも可能です。
+            手動で実行したDeep Researchの結果（Phase 1）を貼り付けてください。
           </p>
 
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
@@ -253,12 +291,6 @@ export default function Home() {
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="h-px bg-neutral-800 flex-1"></div>
-            <span className="text-xs text-neutral-500 font-medium">OR</span>
-            <div className="h-px bg-neutral-800 flex-1"></div>
-          </div>
-
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FileText className="h-5 w-5 text-neutral-500" />
@@ -268,15 +300,15 @@ export default function Home() {
               value={docUrl}
               onChange={(e) => setDocUrl(e.target.value)}
               className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
-              placeholder="GoogleドキュメントのURL"
+              placeholder="GoogleドキュメントのURL（リサーチ結果）"
             />
           </div>
         </section>
 
-        {/* Step 2: Date Setup */}
+        {/* Step 3: Date Setup */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">2</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">3</span>
             <h2 className="text-lg font-semibold">変数の設定</h2>
           </div>
 
