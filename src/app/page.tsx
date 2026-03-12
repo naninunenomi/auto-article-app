@@ -171,15 +171,18 @@ export default function Home() {
           data = await res.json();
 
           if (!res.ok) {
-            // Check if it's a rate limit (429) or server overload (503) error
-            if (data.error && (data.error.includes("429") || data.error.includes("503") || data.error.includes("500"))) {
-              const waitTimeMs = data.error.includes("429") ? 45000 : 30000;
-              console.warn(`Temporary API Error (429/503) hit on phase ${i}. Waiting ${waitTimeMs / 1000} seconds before retrying...`);
+            // Check for transient errors (429, 503, 504, 500)
+            const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
+
+            if (isTransient && retryCount < 2) {
+              const waitTimeMs = res.status === 429 ? 60000 : 30000;
+              console.warn(`Temporary Error (${res.status}) on phase ${i}. Waiting ${waitTimeMs / 1000}s...`);
               await new Promise(r => setTimeout(r, waitTimeMs));
               retryCount++;
               continue;
             } else {
-              throw new Error(data.error || `Phase ${i} failed`);
+              const errMsg = data.error || `Status ${res.status}`;
+              throw new Error(`[Phase ${i}] ${errMsg}`);
             }
           }
           success = true;
@@ -194,9 +197,10 @@ export default function Home() {
         setResults(prev => ({ ...prev, [`phase${i}`]: data.result }));
         console.log(`Phase ${i} result preview:`, data.result.substring(0, 100));
 
-        // To prevent hitting the 250k TPM limit, add a longer 10s delay between successful phases
+        // Longer delay before heavy phases (Podcast generation)
         if (i < 7) {
-          await new Promise(r => setTimeout(r, 10000));
+          const delay = (i === 5) ? 15000 : 10000; // Extra wait before Phase 6
+          await new Promise(r => setTimeout(r, delay));
         }
       }
 

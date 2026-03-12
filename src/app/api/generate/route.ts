@@ -16,18 +16,25 @@ export async function POST(req: Request) {
         // Replace date variable
         const finalPrompt = prompt.replace(/\\[日付\\]/g, date);
 
-        // Default model (Using latest stable flash model alias to avoid version not found errors)
-        const model = "gemini-flash-latest";
+        // Use stable 1.5 Flash model
+        const model = ai.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+            ],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048, // Limit length to avoid timeouts
+            }
+        });
 
         let resultText = "";
 
         try {
-            const response = await ai.models.generateContent({
-                model: model,
-                contents: [
-                    {
-                        role: 'user', parts: [{
-                            text: `
+            const result = await model.generateContent(`
 以下の入力データを元に、指示に従ってタスクを実行してください。
 
 【入力データ】
@@ -35,19 +42,13 @@ ${input}
 
 【指示】
 ${finalPrompt}
-` }]
-                    }
-                ],
-                config: {
-                    temperature: 0.7,
-                }
-            });
-
-            resultText = response.text || "";
+`);
+            const response = await result.response;
+            resultText = response.text();
         } catch (genAiError: any) {
             console.error(`Gemini API Error details in phase ${phase}:`, genAiError);
             return NextResponse.json(
-                { error: `Gemini APIエラー: ${genAiError.message || '不明なエラー'}` },
+                { error: `Gemini API Error (${phase}): ${genAiError.message || '不明なエラー'}` },
                 { status: 500 }
             );
         }
