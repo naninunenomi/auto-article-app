@@ -17,9 +17,9 @@ export async function POST(req: Request) {
         // Replace date variable
         const finalPrompt = prompt.replace(/\\[日付\\]/g, date);
 
-        // Use stable 1.5 Flash model
+        // Use stable 1.5 Flash model variant
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-1.5-flash-latest",
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
