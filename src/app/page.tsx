@@ -123,29 +123,35 @@ export default function Home() {
 
         let inputForPhase = "";
 
+        // Function to split text into chunks (around 4000 characters to be safe with tokens)
+        const splitIntoChunks = (text: string, size: number = 4000) => {
+          const chunks = [];
+          for (let i = 0; i < text.length; i += size) {
+            chunks.push(text.substring(i, i + size));
+          }
+          return chunks;
+        };
+
         switch (i) {
           case 2:
-            // Phase 2: Needs Phase 1 (inputText) and V5 Configuration
             inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}`;
             break;
           case 3:
-            // Phase 3: Needs Phase 1, Phase 2, and V5 Configuration
             inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}\n\n【Phase 2の結果（無料版記事）】\n${resultsRef["phase2"]}`;
             break;
           case 4:
-            // Phase 4: Needs Phase 2 and Phase 3
-            inputForPhase = `【Phase 2の結果（無料版記事）】\n${resultsRef["phase2"]}\n\n【Phase 3の結果（有料版記事）】\n${resultsRef["phase3"]}`;
-            break;
+            // Phase 4: Token Optimization - Direct Programmatic Join
+            console.log("Phase 4: Optimization - Joining results without AI call.");
+            const combinedContent = `${resultsRef["phase2"] || ""}\n\n---\n\n${resultsRef["phase3"] || ""}`;
+            resultsRef[`phase${i}`] = combinedContent;
+            setResults(prev => ({ ...prev, [`phase${i}`]: combinedContent }));
+            success = true; // Skip AI call
+            continue; // Skip to next phase loop
           case 5:
-            // Phase 5: Needs Phase 4
             inputForPhase = `【結合済み記事】\n${resultsRef["phase4"]}`;
             break;
           case 6:
-            // Phase 6: Needs Phase 5
-            inputForPhase = `【完成原稿】\n${resultsRef["phase5"]}`;
-            break;
           case 7:
-            // Phase 7: Needs Phase 5
             inputForPhase = `【完成原稿】\n${resultsRef["phase5"]}`;
             break;
           default:
@@ -153,53 +159,97 @@ export default function Home() {
         }
 
         let retryCount = 0;
-        let success = false;
         let data: any = null;
 
-        while (!success && retryCount < 3) {
-          const res = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              phase: i,
-              input: inputForPhase,
-              prompt: promptText,
-              date: targetDate
-            })
-          });
+        // Phase 5: Chunked processing if content is long
+        if (i === 5) {
+          const chunks = splitIntoChunks(inputForPhase, 4000);
+          let allResults = "";
+          console.log(`Phase 5: Splitting content into ${chunks.length} chunks...`);
 
-          data = await res.json();
+          for (let j = 0; j < chunks.length; j++) {
+            let chunkSuccess = false;
+            let chunkRetry = 0;
 
-          if (!res.ok) {
-            // Check for transient errors (429, 503, 504, 500)
-            const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
+            while (!chunkSuccess && chunkRetry < 3) {
+              const res = await fetch("/api/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  phase: i,
+                  input: `(文章の ${j + 1}/${chunks.length} 番目のセクション)\n\n${chunks[j]}`,
+                  prompt: `${promptText}\n\n重要：これは非常に長い文章の一部です。文章の整合性を保ちつつ、このセクションの校正のみを行ってください。余計な挨拶やまとめは不要です。`,
+                  date: targetDate
+                })
+              });
 
-            if (isTransient && retryCount < 2) {
-              const waitTimeMs = res.status === 429 ? 60000 : 30000;
-              console.warn(`Temporary Error (${res.status}) on phase ${i}. Waiting ${waitTimeMs / 1000}s...`);
-              await new Promise(r => setTimeout(r, waitTimeMs));
-              retryCount++;
-              continue;
-            } else {
-              const errMsg = data.error || `Status ${res.status}`;
-              throw new Error(`[Phase ${i}] ${errMsg}`);
+              const chunkData = await res.json();
+              if (res.ok) {
+                allResults += chunkData.result + "\n\n";
+                chunkSuccess = true;
+                // Minor delay between chunks to avoid rate limit
+                if (j < chunks.length - 1) await new Promise(r => setTimeout(r, 5000));
+              } else {
+                const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
+                if (isTransient && chunkRetry < 2) {
+                  const waitTime = res.status === 429 ? 60000 : 20000;
+                  console.warn(`Chunk ${j} error ${res.status}. Waiting ${waitTime / 1000}s...`);
+                  await new Promise(r => setTimeout(r, waitTime));
+                  chunkRetry++;
+                } else {
+                  throw new Error(`[Phase 5 Chunk ${j + 1}] ` + (chunkData.error || `Status ${res.status}`));
+                }
+              }
             }
+            if (!chunkSuccess) throw new Error(`Phase 5 チャンク ${j + 1} の生成に失敗しました。`);
           }
+
+          resultsRef[`phase${i}`] = allResults.trim();
+          setResults(prev => ({ ...prev, [`phase${i}`]: allResults.trim() }));
           success = true;
+        } else {
+          // Standard Single API Call for other phases
+          while (!success && retryCount < 3) {
+            const res = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                phase: i,
+                input: inputForPhase,
+                prompt: promptText,
+                date: targetDate
+              })
+            });
+
+            data = await res.json();
+
+            if (!res.ok) {
+              const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
+              if (isTransient && retryCount < 2) {
+                const waitTimeMs = res.status === 429 ? 60000 : 30000;
+                console.warn(`Temporary Error (${res.status}) on phase ${i}. Waiting ${waitTimeMs / 1000}s...`);
+                await new Promise(r => setTimeout(r, waitTimeMs));
+                retryCount++;
+                continue;
+              } else {
+                throw new Error(`[Phase ${i}] ${data.error || `Status ${res.status}`}`);
+              }
+            }
+            success = true;
+            resultsRef[`phase${i}`] = data.result;
+            setResults(prev => ({ ...prev, [`phase${i}`]: data.result }));
+          }
         }
 
         if (!success) {
           throw new Error(`Phase ${i} 呼び出しに複数回失敗しました。`);
         }
 
-        // Store result for next phases
-        resultsRef[`phase${i}`] = data.result;
-        setResults(prev => ({ ...prev, [`phase${i}`]: data.result }));
-        console.log(`Phase ${i} result preview:`, data.result.substring(0, 100));
+        console.log(`Phase ${i} completed.`);
 
-        // Longer delay before heavy phases (Podcast generation)
+        // Longer delay before heavy phases
         if (i < 7) {
-          const delay = (i === 5) ? 15000 : 10000; // Extra wait before Phase 6
+          const delay = (i === 5) ? 10000 : 10000;
           await new Promise(r => setTimeout(r, delay));
         }
       }
