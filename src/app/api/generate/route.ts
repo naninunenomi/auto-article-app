@@ -40,6 +40,7 @@ ${finalPrompt}
                 config: {
                     temperature: 0.7,
                     maxOutputTokens: 8192,
+                    tools: phase === 1 ? [{ googleSearch: {} }] : undefined,
                     safetySettings: [
                         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },

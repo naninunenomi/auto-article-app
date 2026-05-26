@@ -4,52 +4,61 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import Link from 'next/link';
 import {
-  FileText,
-  Calendar,
-  Play,
-  Settings,
-  CheckCircle2,
-  Circle,
-  Loader2,
-  FileCheck2,
-  Mic,
-  Twitter,
-  ChevronRight
+  FileText, Calendar, Play, Settings, CheckCircle2,
+  Loader2, FileCheck2, Mic, Twitter, Search, Hash, AlignLeft
 } from "lucide-react";
 
+type PatternType = 'news' | 'keyword_current' | 'keyword_biz';
+
 export default function Home() {
-  const [docUrl, setDocUrl] = useState("");
-  const [docText, setDocText] = useState("");
-  const [configUrl, setConfigUrl] = useState(""); // V5: Configuration/Flag URL
-  const [configText, setConfigText] = useState(""); // V5: Configuration/Flag Text
+  const [pattern, setPattern] = useState<PatternType>('news');
+  
+  // Inputs
+  const [newsText, setNewsText] = useState("");
   const [targetDate, setTargetDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [keyword, setKeyword] = useState("");
+  const [description, setDescription] = useState("");
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(0);
   const [results, setResults] = useState<{ [key: string]: string }>({});
-  const [activeTab, setActiveTab] = useState(2); // ID of the phase to show
-  const [appPrompts, setAppPrompts] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState(1);
+  const [appPrompts, setAppPrompts] = useState<Record<string, Record<string, string>>>({});
 
   const downloadTxt = (filename: string, text: string) => {
     const element = document.createElement("a");
     const file = new Blob([text], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
     element.download = filename;
-    document.body.appendChild(element); // Required for this to work in FireFox
+    document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
   };
 
-  // Enum like representation of phases to show progress
-  const phases = [
-    { id: 2, name: "無料版記事", icon: <FileText className="w-5 h-5" /> },
-    { id: 3, name: "有料版記事", icon: <FileCheck2 className="w-5 h-5" /> },
-    { id: 4, name: "記事結合", icon: <Settings className="w-5 h-5" /> },
-    { id: 5, name: "文字校正", icon: <CheckCircle2 className="w-5 h-5" /> },
-    { id: 6, name: "Podcast作成", icon: <Mic className="w-5 h-5" /> },
-    { id: 7, name: "X投稿文", icon: <Twitter className="w-5 h-5" /> },
-  ];
+  const getPhases = (pat: PatternType) => {
+    if (pat === 'news') {
+      return [
+        { id: 1, name: "Deep Research", icon: <Search className="w-5 h-5" /> },
+        { id: 2, name: "無料版記事", icon: <FileText className="w-5 h-5" /> },
+        { id: 3, name: "有料版記事", icon: <FileCheck2 className="w-5 h-5" /> },
+        { id: 4, name: "記事結合", icon: <Settings className="w-5 h-5" /> },
+        { id: 5, name: "note用修正", icon: <CheckCircle2 className="w-5 h-5" /> },
+        { id: 6, name: "X投稿文", icon: <Twitter className="w-5 h-5" /> },
+        { id: 7, name: "Podcast", icon: <Mic className="w-5 h-5" /> },
+      ];
+    } else {
+      return [
+        { id: 1, name: "Deep Research＆無料版", icon: <Search className="w-5 h-5" /> },
+        { id: 2, name: "有料版記事", icon: <FileCheck2 className="w-5 h-5" /> },
+        { id: 3, name: "結合＆note用修正", icon: <CheckCircle2 className="w-5 h-5" /> },
+        { id: 4, name: "X投稿文", icon: <Twitter className="w-5 h-5" /> },
+        { id: 5, name: "Podcast", icon: <Mic className="w-5 h-5" /> },
+      ];
+    }
+  };
 
-  // Try fetching existing results on mount
+  const phases = getPhases(pattern);
+
   useEffect(() => {
     const fetchResults = async () => {
       try {
@@ -57,7 +66,7 @@ export default function Home() {
         const data = await res.json();
         if (data.results && Object.keys(data.results).length > 0) {
           setResults(data.results);
-          setCurrentPhase(8); // Show results immediately if we have some
+          setCurrentPhase(10); 
         }
       } catch (err) {
         console.error("Failed to load last results", err);
@@ -67,178 +76,129 @@ export default function Home() {
   }, []);
 
   const handleStart = async () => {
-    if (!docText && !docUrl) {
-      alert("リサーチ結果のテキスト、またはGoogleドキュメントのURLを入力してください。");
+    if (pattern === 'news' && !newsText) {
+      alert("ピックアップニュースのテキストを入力してください。");
+      return;
+    }
+    if (pattern !== 'news' && !keyword) {
+      alert("キーワードを入力してください。");
       return;
     }
 
-    // Prepare inputs
-    let inputText = docText;
-    if (docUrl && !docText) {
-      inputText = `参考URL (リサーチ結果): ${docUrl}`;
-    }
-
-    let configInput = configText;
-    if (configUrl && !configText) {
-      configInput = `参考URL (構成案・フラグ情報): ${configUrl}`;
-    }
-
-    // Load saved prompts from API (Vercel KV)
-    let customPrompts: Record<string, string> = {
-      phase2: "以下のリサーチ資料（Phase 1）と指定日時「[日付]」を元に、note掲載用の【無料版記事】を作成してください。\\n...",
-      phase3: "以下のリサーチ資料と「無料版記事」の続きとして、【有料版記事】を作成してください。\\n...",
-      phase4: "無料版と有料版を結合し、全体のフォーマットを整えてください。",
-      phase5: "以下の完成原稿について、誤字脱字やトーンマナーを校正してください。",
-      phase6: "以下の校正済み原稿を元に、Podcast用のトークスクリプトを作成してください。",
-      phase7: "以下の記事内容をプロモーションするためのX（Twitter）投稿文を複数作成してください。"
-    };
-
+    let customPrompts: Record<string, Record<string, string>> = {};
     try {
       const res = await fetch("/api/settings");
       const data = await res.json();
-      if (data.prompts) {
-        customPrompts = { ...customPrompts, ...data.prompts };
+      if (data.prompts && data.prompts.news) {
+        customPrompts = data.prompts;
+      } else {
+        alert("プロンプト設定が読み込めませんでした。設定画面で保存してください。");
+        return;
       }
     } catch (e) {
       console.error("Failed to load prompts from API", e);
+      alert("プロンプト設定の読み込みに失敗しました。");
+      return;
     }
     setAppPrompts(customPrompts);
-    const getPrompt = (key: string) => customPrompts[key] || "";
+
+    const patPrompts = customPrompts[pattern] || {};
+    const getPrompt = (key: string) => patPrompts[key] || "";
 
     setIsProcessing(true);
-    let currentInput = inputText;
     const resultsRef: { [key: string]: string } = {};
 
-    // Execute sequence 
     try {
-      for (let i = 2; i <= 7; i++) {
+      const numPhases = pattern === 'news' ? 7 : 5;
+      
+      for (let i = 1; i <= numPhases; i++) {
         setCurrentPhase(i);
         const phaseKey = `phase${i}`;
         const promptText = getPrompt(phaseKey);
-
-        if (!promptText) {
-          console.warn(`No prompt specified for phase ${i}, skipping.`);
-          continue;
+        
+        if (!promptText && (pattern !== 'news' || i !== 4)) { // Phase 4 in news is programmatic
+           throw new Error(`Phase ${i} のプロンプトが設定されていません。`);
         }
 
         let inputForPhase = "";
-
-        // Function to split text into chunks (around 4000 characters to be safe with tokens)
-        const splitIntoChunks = (text: string, size: number = 4000) => {
-          const chunks = [];
-          for (let i = 0; i < text.length; i += size) {
-            chunks.push(text.substring(i, i + size));
+        
+        if (pattern === 'news') {
+          switch (i) {
+            case 1:
+              inputForPhase = `【ピックアップニュース】\n${newsText}`;
+              break;
+            case 2:
+              inputForPhase = `【リサーチ結果】\n${resultsRef["phase1"]}`;
+              break;
+            case 3:
+              inputForPhase = `【リサーチ結果】\n${resultsRef["phase1"]}\n\n【無料版記事】\n${resultsRef["phase2"]}`;
+              break;
+            case 4:
+              console.log("Phase 4: Optimization - Joining results without AI call.");
+              const combinedContent = `${resultsRef["phase2"] || ""}\n\n---\n\n${resultsRef["phase3"] || ""}`;
+              resultsRef[`phase${i}`] = combinedContent;
+              setResults(prev => ({ ...prev, [`phase${i}`]: combinedContent }));
+              continue; 
+            case 5:
+              inputForPhase = `【結合済み記事】\n${resultsRef["phase4"]}`;
+              break;
+            case 6:
+            case 7:
+              inputForPhase = `【完成原稿】\n${resultsRef["phase5"]}`;
+              break;
           }
-          return chunks;
-        };
-
-        switch (i) {
-          case 2:
-            inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}`;
-            break;
-          case 3:
-            inputForPhase = `【構成案・フラグ情報】\n${configInput || "指定なし"}\n\n【元データ（リサーチ結果）】\n${inputText}\n\n【Phase 2の結果（無料版記事）】\n${resultsRef["phase2"]}`;
-            break;
-          case 4:
-            // Phase 4: Token Optimization - Direct Programmatic Join
-            console.log("Phase 4: Optimization - Joining results without AI call.");
-            const combinedContent = `${resultsRef["phase2"] || ""}\n\n---\n\n${resultsRef["phase3"] || ""}`;
-            resultsRef[`phase${i}`] = combinedContent;
-            setResults(prev => ({ ...prev, [`phase${i}`]: combinedContent }));
-            success = true; // Skip AI call
-            continue; // Skip to next phase loop
-          case 5:
-            inputForPhase = `【結合済み記事】\n${resultsRef["phase4"]}`;
-            break;
-          case 6:
-          case 7:
-            inputForPhase = `【完成原稿】\n${resultsRef["phase5"]}`;
-            break;
-          default:
-            inputForPhase = inputText;
+        } else {
+          switch (i) {
+            case 1:
+              inputForPhase = `【キーワード】\n${keyword}\n\n【補足説明文】\n${description}`;
+              break;
+            case 2:
+              inputForPhase = `【リサーチ結果＆無料版記事】\n${resultsRef["phase1"]}`;
+              break;
+            case 3:
+              inputForPhase = `【無料版記事】\n${resultsRef["phase1"]}\n\n【有料版記事】\n${resultsRef["phase2"]}`;
+              break;
+            case 4:
+            case 5:
+              inputForPhase = `【完成原稿】\n${resultsRef["phase3"]}`;
+              break;
+          }
         }
 
         let retryCount = 0;
+        let success = false;
         let data: any = null;
 
-        // Phase 5: Chunked processing if content is long
-        if (i === 5) {
-          const chunks = splitIntoChunks(inputForPhase, 4000);
-          let allResults = "";
-          console.log(`Phase 5: Splitting content into ${chunks.length} chunks...`);
+        while (!success && retryCount < 3) {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phase: i,
+              pattern: pattern,
+              input: inputForPhase,
+              prompt: promptText,
+              date: targetDate
+            })
+          });
 
-          for (let j = 0; j < chunks.length; j++) {
-            let chunkSuccess = false;
-            let chunkRetry = 0;
+          data = await res.json();
 
-            while (!chunkSuccess && chunkRetry < 3) {
-              const res = await fetch("/api/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  phase: i,
-                  input: `(文章の ${j + 1}/${chunks.length} 番目のセクション)\n\n${chunks[j]}`,
-                  prompt: `${promptText}\n\n重要：これは非常に長い文章の一部です。文章の整合性を保ちつつ、このセクションの校正のみを行ってください。余計な挨拶やまとめは不要です。`,
-                  date: targetDate
-                })
-              });
-
-              const chunkData = await res.json();
-              if (res.ok) {
-                allResults += chunkData.result + "\n\n";
-                chunkSuccess = true;
-                // Minor delay between chunks to avoid rate limit
-                if (j < chunks.length - 1) await new Promise(r => setTimeout(r, 5000));
-              } else {
-                const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
-                if (isTransient && chunkRetry < 2) {
-                  const waitTime = res.status === 429 ? 60000 : 20000;
-                  console.warn(`Chunk ${j} error ${res.status}. Waiting ${waitTime / 1000}s...`);
-                  await new Promise(r => setTimeout(r, waitTime));
-                  chunkRetry++;
-                } else {
-                  throw new Error(`[Phase 5 Chunk ${j + 1}] ` + (chunkData.error || `Status ${res.status}`));
-                }
-              }
+          if (!res.ok) {
+            const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
+            if (isTransient && retryCount < 2) {
+              const waitTimeMs = res.status === 429 ? 60000 : 30000;
+              console.warn(`Temporary Error (${res.status}) on phase ${i}. Waiting ${waitTimeMs / 1000}s...`);
+              await new Promise(r => setTimeout(r, waitTimeMs));
+              retryCount++;
+              continue;
+            } else {
+              throw new Error(`[Phase ${i}] ${data.error || `Status ${res.status}`}`);
             }
-            if (!chunkSuccess) throw new Error(`Phase 5 チャンク ${j + 1} の生成に失敗しました。`);
           }
-
-          resultsRef[`phase${i}`] = allResults.trim();
-          setResults(prev => ({ ...prev, [`phase${i}`]: allResults.trim() }));
           success = true;
-        } else {
-          // Standard Single API Call for other phases
-          while (!success && retryCount < 3) {
-            const res = await fetch("/api/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                phase: i,
-                input: inputForPhase,
-                prompt: promptText,
-                date: targetDate
-              })
-            });
-
-            data = await res.json();
-
-            if (!res.ok) {
-              const isTransient = res.status === 429 || res.status === 503 || res.status === 504 || res.status === 500;
-              if (isTransient && retryCount < 2) {
-                const waitTimeMs = res.status === 429 ? 60000 : 30000;
-                console.warn(`Temporary Error (${res.status}) on phase ${i}. Waiting ${waitTimeMs / 1000}s...`);
-                await new Promise(r => setTimeout(r, waitTimeMs));
-                retryCount++;
-                continue;
-              } else {
-                throw new Error(`[Phase ${i}] ${data.error || `Status ${res.status}`}`);
-              }
-            }
-            success = true;
-            resultsRef[`phase${i}`] = data.result;
-            setResults(prev => ({ ...prev, [`phase${i}`]: data.result }));
-          }
+          resultsRef[`phase${i}`] = data.result;
+          setResults(prev => ({ ...prev, [`phase${i}`]: data.result }));
         }
 
         if (!success) {
@@ -246,45 +206,40 @@ export default function Home() {
         }
 
         console.log(`Phase ${i} completed.`);
-
-        // Longer delay before heavy phases
-        if (i < 7) {
-          const delay = (i === 5) ? 10000 : 10000;
-          await new Promise(r => setTimeout(r, delay));
-        }
+        await new Promise(r => setTimeout(r, 8000));
       }
 
-      // Final result saving logic to KV
       try {
         await fetch("/api/results", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ results: resultsRef })
         });
-        console.log("Successfully saved results to KV");
       } catch (err) {
         console.error("Failed to save results to KV", err);
       }
 
-      alert("全フェーズの生成が完了しました！下部の「生成完了」から結果をご確認ください。");
+      alert("全フェーズの生成が完了しました！");
+      setActiveTab(pattern === 'news' ? 5 : 3);
     } catch (err: any) {
       alert("生成中にエラーが発生しました: " + err.message);
       console.error(err);
     }
 
     setIsProcessing(false);
-    setCurrentPhase(8); // Complete
+    setCurrentPhase(10); 
   };
+
+  const currentPatternPrompts = appPrompts[pattern] || {};
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 pb-24 font-sans selection:bg-teal-500/30">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-teal-400 to-emerald-600 flex items-center justify-center">
             <Settings className="w-4 h-4 text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Auto Article</h1>
+          <h1 className="text-xl font-bold tracking-tight">Auto Article V6</h1>
         </div>
         <Link href="/settings" className="p-2 -mr-2 rounded-full hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-white">
           <Settings className="w-5 h-5" />
@@ -293,106 +248,99 @@ export default function Home() {
 
       <main className="px-6 py-8 max-w-md mx-auto space-y-8">
 
-        {/* Step 1: Configuration / Flag Input (V5) */}
+        {/* Pattern Selector */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">1</span>
-            <h2 className="text-lg font-semibold">構成案・フラグ情報の入力</h2>
+            <h2 className="text-lg font-semibold">パターンの選択</h2>
           </div>
-          <p className="text-sm text-neutral-400 leading-relaxed">
-            無料版（x）や有料版（y）の指定が含まれる構成案ドキュメントを入力してください。
-          </p>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
-            <textarea
-              value={configText}
-              onChange={(e) => setConfigText(e.target.value)}
-              placeholder="構成案（フラグ情報）をここにペースト..."
-              className="w-full h-24 bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none resize-none p-3 text-sm"
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FileText className="h-5 w-5 text-neutral-500" />
-            </div>
-            <input
-              type="url"
-              value={configUrl}
-              onChange={(e) => setConfigUrl(e.target.value)}
-              className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
-              placeholder="GoogleドキュメントのURL（構成案）"
-            />
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              { id: 'news', label: '📰 ニュースパターン' },
+              { id: 'keyword_current', label: '🌐 時事キーワードパターン' },
+              { id: 'keyword_biz', label: '💼 お勉強（ビジネス用語）パターン' }
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => { setPattern(p.id as PatternType); setResults({}); setCurrentPhase(0); }}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  pattern === p.id 
+                  ? 'bg-teal-500/10 border-teal-500/50 text-teal-400' 
+                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                }`}
+              >
+                <div className="font-bold text-sm">{p.label}</div>
+              </button>
+            ))}
           </div>
         </section>
 
-        {/* Step 2: Input Deep Research */}
+        {/* Inputs based on pattern */}
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">2</span>
-            <h2 className="text-lg font-semibold">リサーチ結果の入力</h2>
+            <h2 className="text-lg font-semibold">インプット情報</h2>
           </div>
-          <p className="text-sm text-neutral-400 leading-relaxed">
-            手動で実行したDeep Researchの結果（Phase 1）を貼り付けてください。
-          </p>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
-            <textarea
-              value={docText}
-              onChange={(e) => setDocText(e.target.value)}
-              placeholder="リサーチ結果のテキストをここにペースト..."
-              className="w-full h-32 bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none resize-none p-3 text-sm"
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FileText className="h-5 w-5 text-neutral-500" />
+          
+          {pattern === 'news' ? (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Calendar className="h-5 w-5 text-neutral-500" />
+                </div>
+                <input
+                  type="date"
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
+                />
+              </div>
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
+                <textarea
+                  value={newsText}
+                  onChange={(e) => setNewsText(e.target.value)}
+                  placeholder="ピックアップニュースのテキストをペースト..."
+                  className="w-full h-32 bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none resize-none p-3 text-sm"
+                />
+              </div>
             </div>
-            <input
-              type="url"
-              value={docUrl}
-              onChange={(e) => setDocUrl(e.target.value)}
-              className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
-              placeholder="GoogleドキュメントのURL（リサーチ結果）"
-            />
-          </div>
-        </section>
-
-        {/* Step 3: Date Setup */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">3</span>
-            <h2 className="text-lg font-semibold">変数の設定</h2>
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Calendar className="h-5 w-5 text-neutral-500" />
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Hash className="h-5 w-5 text-neutral-500" />
+                </div>
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="キーワードを入力..."
+                  className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
+                />
+              </div>
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="補足説明文をペースト..."
+                  className="w-full h-32 bg-transparent text-neutral-200 placeholder:text-neutral-600 outline-none resize-none p-3 text-sm"
+                />
+              </div>
             </div>
-            <input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              className="block w-full pl-10 pr-3 py-3 border border-neutral-800 rounded-xl bg-neutral-900 text-neutral-200 focus:outline-none focus:ring-2 focus:ring-teal-500/50 sm:text-sm transition-all"
-            />
-          </div>
-          <p className="text-xs text-neutral-500">
-            ※ 上記の日付がプロンプト内の [日付] に自動変換されます。
-          </p>
+          )}
         </section>
 
         {/* Progress Preview */}
         <section className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 space-y-4">
-          <h3 className="text-sm font-medium text-neutral-400">実行フェーズ (自動化)</h3>
+          <h3 className="text-sm font-medium text-neutral-400">自動化ワークフロー</h3>
           <div className="space-y-3">
-            {phases.map((phase, index) => {
+            {phases.map((phase) => {
               const isActive = currentPhase === phase.id;
               const isPast = currentPhase > phase.id;
 
               return (
-                <div id={`phase-\${phase.id}`} key={phase.id} className={`flex items-center gap-3 \${isPast ? 'opacity-50' : ''}`}>
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center \${
+                <div key={phase.id} className={`flex items-center gap-3 ${isPast ? 'opacity-50' : ''}`}>
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     isActive ? 'bg-teal-500 text-white animate-pulse' : 
                     isPast ? 'bg-teal-500/20 text-teal-500' : 'bg-neutral-800 text-neutral-500'
                   }`}>
@@ -400,7 +348,7 @@ export default function Home() {
                       isPast ? <CheckCircle2 className="w-4 h-4" /> : phase.icon}
                   </div>
                   <div className="flex-1">
-                    <p className={`text-sm font-medium \${isActive ? 'text-teal-400' : isPast ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                    <p className={`text-sm font-medium ${isActive ? 'text-teal-400' : isPast ? 'text-neutral-400' : 'text-neutral-500'}`}>
                       Phase {phase.id}: {phase.name}
                     </p>
                   </div>
@@ -411,7 +359,7 @@ export default function Home() {
         </section>
 
         {/* Results UI */}
-        {currentPhase === 8 && Object.keys(results).length > 0 && (
+        {currentPhase === 10 && Object.keys(results).length > 0 && (
           <section id="results-section" className="space-y-4 pt-4 border-t border-neutral-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-lg font-bold text-teal-400 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5" />
@@ -424,13 +372,13 @@ export default function Home() {
                 <button
                   key={phase.id}
                   onClick={() => setActiveTab(phase.id)}
-                  className={`shrink-0 snap-start px-4 py-2 rounded-xl text-sm font-medium transition-all \${
+                  className={`shrink-0 snap-start px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                      activeTab === phase.id 
                      ? 'bg-teal-500 text-white shadow-md shadow-teal-500/20' 
                      : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
                    }`}
                 >
-                  Phase {phase.id}
+                  {phase.name}
                 </button>
               ))}
             </div>
@@ -444,16 +392,6 @@ export default function Home() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      const text = results[`phase${activeTab}`] || "";
-                      downloadTxt(`Phase${activeTab}_${phases.find(p => p.id === activeTab)?.name}.txt`, text);
-                    }}
-                    className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                  >
-                    <FileText className="w-3 h-3" />
-                    ファイル保存 (.txt)
-                  </button>
-                  <button
-                    onClick={() => {
                       navigator.clipboard.writeText(results[`phase${activeTab}`] || "");
                       alert("コピーしました");
                     }}
@@ -465,14 +403,14 @@ export default function Home() {
                 </div>
               </div>
 
-              {activeTab === 5 && (
+              {((pattern === 'news' && activeTab === 5) || (pattern !== 'news' && activeTab === 3)) && (
                 <div className="mb-4 p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl space-y-2">
                   <p className="text-xs text-teal-400 font-medium">✨ NotebookLM連携 (音声用)</p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        const prompt = appPrompts["notebookLM_A"] || "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。";
-                        const text = results[`phase5`] || "";
+                        const prompt = currentPatternPrompts["notebookLM_A"] || "ポッドキャスト音声を作成してください。";
+                        const text = results[`phase${activeTab}`] || "";
                         navigator.clipboard.writeText(`【指示】\n${prompt}\n\n【原稿】\n${text}`);
                         alert("NotebookLM用プロンプトAと原稿をセットでコピーしました！");
                       }}
@@ -482,8 +420,8 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => {
-                        const prompt = appPrompts["notebookLM_B"] || "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。";
-                        const text = results[`phase5`] || "";
+                        const prompt = currentPatternPrompts["notebookLM_B"] || "要約音声を作成してください。";
+                        const text = results[`phase${activeTab}`] || "";
                         navigator.clipboard.writeText(`【指示】\n${prompt}\n\n【原稿】\n${text}`);
                         alert("NotebookLM用プロンプトBと原稿をセットでコピーしました！");
                       }}
@@ -507,7 +445,7 @@ export default function Home() {
 
       {/* Floating Run Button */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent">
-        {currentPhase === 8 ? (
+        {currentPhase === 10 ? (
           <div className="flex gap-3 w-full max-w-md mx-auto">
             <button
               onClick={() => {

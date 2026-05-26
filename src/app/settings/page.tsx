@@ -2,34 +2,69 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, FileText, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
+
+type PatternType = 'news' | 'keyword_current' | 'keyword_biz';
+
+const DEFAULT_PROMPTS = {
+  news: {
+    phase1: "指定日時「[日付]」と以下のピックアップニュースを元に、Deep Researchを行い、事実確認と詳細な背景を調査してください。",
+    phase2: "以下のリサーチ資料（Phase 1）を元に、note掲載用の【無料版記事】を作成してください。",
+    phase3: "以下のリサーチ資料と「無料版記事」の続きとして、【有料版記事】を作成してください。",
+    phase5: "以下の無料・有料結合済み原稿について、誤字脱字やトーンマナーを校正し、note用のHTML装飾（h2, strong, ul等）を付与してください。",
+    phase6: "以下の校正済み原稿を元に、プロモーションするためのX（Twitter）投稿文を作成してください。",
+    phase7: "以下の記事内容を元に、Podcast用のタイトルと説明文を作成してください。",
+    notebookLM_A: "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。",
+    notebookLM_B: "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。"
+  },
+  keyword_current: {
+    phase1: "以下のキーワードと補足説明文を元にDeep Researchを行い、調査結果から直接、note掲載用の【無料版記事】を作成してください。",
+    phase2: "以下のPhase 1の結果（リサーチ内容と無料版記事）を元に、続きとなる【有料版記事】を作成してください。",
+    phase3: "無料版と有料版を結合し、誤字脱字を校正の上、note用のHTML装飾（h2, strong, ul等）を付与してください。",
+    phase4: "以下の校正済み原稿を元に、プロモーションするためのX（Twitter）投稿文を作成してください。",
+    phase5: "以下の記事内容を元に、Podcast用のタイトルと説明文を作成してください。",
+    notebookLM_A: "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。",
+    notebookLM_B: "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。"
+  },
+  keyword_biz: {
+    phase1: "以下のビジネス用語キーワードと補足説明文を元に、用語の意味や具体例をDeep Researchし、その結果から直接note掲載用の【無料版記事】を作成してください。",
+    phase2: "以下のPhase 1の結果（リサーチ内容と無料版記事）を元に、さらに深い解説や事例を含んだ【有料版記事】を作成してください。",
+    phase3: "無料版と有料版を結合し、誤字脱字を校正の上、note用のHTML装飾（h2, strong, ul等）を付与してください。",
+    phase4: "以下の校正済み原稿を元に、プロモーションするためのX（Twitter）投稿文を作成してください。",
+    phase5: "以下の記事内容を元に、Podcast用のタイトルと説明文を作成してください。",
+    notebookLM_A: "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。",
+    notebookLM_B: "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。"
+  }
+};
+
+const TABS: { id: PatternType; label: string }[] = [
+  { id: 'news', label: 'ニュース' },
+  { id: 'keyword_current', label: '時事キーワード' },
+  { id: 'keyword_biz', label: 'お勉強キーワード' }
+];
 
 export default function SettingsPage() {
-    const defaultPrompts = {
-        phase2: "以下のリサーチ資料（Phase 1）と指定日時「[日付]」を元に、note掲載用の【無料版記事】を作成してください。\\n...",
-        phase3: "以下のリサーチ資料と「無料版記事」の続きとして、【有料版記事】を作成してください。\\n...",
-        phase4: "無料版と有料版を結合し、全体のフォーマットを整えてください。",
-        phase5: "以下の完成原稿について、誤字脱字やトーンマナーを校正してください。",
-        phase6: "以下の校正済み原稿を元に、Podcast用のトークスクリプトを作成してください。",
-        phase7: "以下の記事内容をプロモーションするためのX（Twitter）投稿文を複数作成してください。",
-        notebookLM_A: "以下のテキストを元に、5分程度の対話形式（ホストとゲスト）のポッドキャスト音声を作成してください。",
-        notebookLM_B: "以下のテキストを元に、1分程度の単独語り形式の要約音声を作成してください。"
-    };
-
-    const [prompts, setPrompts] = useState(defaultPrompts);
+    const [prompts, setPrompts] = useState(DEFAULT_PROMPTS);
+    const [activeTab, setActiveTab] = useState<PatternType>('news');
     const [isSaved, setIsSaved] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
-        // Load from API instead of localStorage
         const fetchPrompts = async () => {
             try {
                 const res = await fetch("/api/settings");
                 const data = await res.json();
-                if (data.prompts) {
+                if (data.prompts && data.prompts.news) {
+                    // KV returns nested format
                     setPrompts(prev => ({ ...prev, ...data.prompts }));
+                } else if (data.prompts && data.prompts.phase2) {
+                     // Migrate old flat format to news
+                     setPrompts(prev => ({
+                         ...prev,
+                         news: { ...prev.news, ...data.prompts }
+                     }));
                 }
             } catch (e) {
                 console.error("Failed to fetch prompts from API", e);
@@ -40,7 +75,6 @@ export default function SettingsPage() {
         fetchPrompts();
     }, []);
 
-    // Prevent hydration mismatch by rendering a placeholder until mounted
     if (!isMounted || isLoading) {
         return <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-teal-500">読み込み中...</div>;
     }
@@ -60,8 +94,14 @@ export default function SettingsPage() {
         }
     };
 
-    const handleChange = (key: keyof typeof prompts, value: string) => {
-        setPrompts((prev) => ({ ...prev, [key]: value }));
+    const handleChange = (key: string, value: string) => {
+        setPrompts((prev) => ({
+            ...prev,
+            [activeTab]: {
+                ...prev[activeTab],
+                [key]: value
+            }
+        }));
     };
 
     return (
@@ -94,12 +134,28 @@ export default function SettingsPage() {
 
             <main className="px-6 py-8 max-w-md mx-auto space-y-8">
                 <p className="text-sm text-neutral-400">
-                    生成AIに渡すプロンプト（指示文）をフェーズごとに編集できます。
-                    <br />文中に <code>[日付]</code> と記述すると、メイン画面で指定した日付に自動変換されます。
+                    生成AIに渡すプロンプト（指示文）をパターンとフェーズごとに編集できます。
                 </p>
 
+                {/* Tabs */}
+                <div className="flex overflow-x-auto pb-2 gap-2 snap-x scrollbar-hide">
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`shrink-0 snap-start px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                                activeTab === tab.id
+                                    ? 'bg-teal-500 text-white shadow-md shadow-teal-500/20'
+                                    : 'bg-neutral-900 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
                 <div className="space-y-6">
-                    {Object.entries(prompts).map(([key, value]) => {
+                    {Object.entries(prompts[activeTab]).map(([key, value]) => {
                         const isNotebookLM = key.startsWith("notebookLM");
                         const phaseNumber = key.replace("phase", "");
                         const labelName = isNotebookLM
@@ -118,7 +174,7 @@ export default function SettingsPage() {
                                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-1 focus-within:ring-2 focus-within:ring-teal-500/50 transition-all">
                                     <textarea
                                         value={value}
-                                        onChange={(e) => handleChange(key as keyof typeof prompts, e.target.value)}
+                                        onChange={(e) => handleChange(key, e.target.value)}
                                         className="w-full h-32 bg-transparent text-neutral-200 outline-none resize-none p-3 text-sm"
                                     />
                                 </div>
