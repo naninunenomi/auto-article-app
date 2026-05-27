@@ -55,7 +55,7 @@ export default function SettingsPage() {
         setIsMounted(true);
         const fetchPrompts = async () => {
             try {
-                const res = await fetch("/api/settings");
+                const res = await fetch("/api/settings", { cache: "no-store" });
                 const data = await res.json();
                 if (data.prompts && data.prompts.news) {
                     // KV returns nested format
@@ -82,11 +82,12 @@ export default function SettingsPage() {
 
     const handleSave = async () => {
         try {
-            await fetch("/api/settings", {
+            const res = await fetch("/api/settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompts })
             });
+            if (!res.ok) throw new Error("Save failed");
             setIsSaved(true);
             setTimeout(() => setIsSaved(false), 2000);
         } catch (e) {
