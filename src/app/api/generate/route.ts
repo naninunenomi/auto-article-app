@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-
 export async function POST(req: Request) {
     try {
-        const apiKey = process.env.GEMINI_API_KEY || "";
-        const genAI = new GoogleGenAI({ apiKey });
         const { phase, input, prompt, date } = await req.json();
 
         if (!prompt) {
