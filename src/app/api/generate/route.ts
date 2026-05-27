@@ -21,7 +21,7 @@ export async function POST(req: Request) {
             );
         }
         
-        const model = "gemini-2.0-flash"; // Use the rock-solid model from ars-project
+        const model = "gemini-3-flash-preview";
 
         const tools = phase === 1 ? [{ googleSearchRetrieval: {} }] : undefined;
 
