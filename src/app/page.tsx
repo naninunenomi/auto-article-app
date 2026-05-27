@@ -62,7 +62,7 @@ export default function Home() {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        const res = await fetch("/api/results", { cache: "no-store" });
+        const res = await fetch(`/api/results?t=${Date.now()}`, { cache: "no-store" });
         const data = await res.json();
         if (data.results && Object.keys(data.results).length > 0) {
           setResults(data.results);
@@ -87,7 +87,7 @@ export default function Home() {
 
     let customPrompts: Record<string, Record<string, string>> = {};
     try {
-      const res = await fetch("/api/settings", { cache: "no-store" });
+      const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.prompts && data.prompts.news) {
         customPrompts = data.prompts;

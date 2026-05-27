@@ -55,7 +55,7 @@ export default function SettingsPage() {
         setIsMounted(true);
         const fetchPrompts = async () => {
             try {
-                const res = await fetch("/api/settings", { cache: "no-store" });
+                const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: "no-store" });
                 const data = await res.json();
                 if (data.prompts && data.prompts.news) {
                     // KV returns nested format
