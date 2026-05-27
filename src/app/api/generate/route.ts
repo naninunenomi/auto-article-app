@@ -21,16 +21,18 @@ export async function POST(req: Request) {
             );
         }
         
-        const model = "gemini-3-flash-preview";
-
+        const modelsToTry = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash"];
         const tools = phase === 1 ? [{ googleSearchRetrieval: {} }] : undefined;
 
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: `
+        let lastErrorText = "";
+
+        for (const model of modelsToTry) {
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: `
 以下の入力データを元に、指示に従ってタスクを実行してください。
 
 【入力データ】
@@ -39,36 +41,49 @@ ${input}
 【指示】
 ${finalPrompt}
 ` }] }],
-                    tools: tools,
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 8192,
-                    },
-                    safetySettings: [
-                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                    ]
-                })
-            });
+                        tools: tools,
+                        generationConfig: {
+                            temperature: 0.7,
+                            maxOutputTokens: 8192,
+                        },
+                        safetySettings: [
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                        ]
+                    })
+                });
 
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(`Gemini API Error: ${errText}`);
+                if (!res.ok) {
+                    const errText = await res.text();
+                    lastErrorText = errText;
+                    
+                    // If it's a rate limit (429) or model not found/unauthorized (404/403), try the next model
+                    if (res.status === 429 || res.status === 404 || res.status === 403) {
+                        console.warn(`[Phase ${phase}] Model ${model} failed with ${res.status}. Trying next...`);
+                        continue;
+                    }
+                    throw new Error(`Gemini API Error: ${errText}`);
+                }
+
+                const data = await res.json();
+                const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                
+                console.log(`[Phase ${phase}] Successfully generated using model: ${model}`);
+                return NextResponse.json({ text: generatedText });
+
+            } catch (error: any) {
+                console.error(`Gemini API Error details in phase ${phase} for model ${model}:`, error);
+                // If it's a network error, try the next model
             }
-
-            const data = await res.json();
-            const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-            return NextResponse.json({ text: generatedText });
-        } catch (error: any) {
-            console.error(`Gemini API Error details in phase ${phase}:`, error);
-            return NextResponse.json(
-                { error: `[V2-FETCH] Gemini API Error (${phase}): ${error.message || '不明なエラー'}` },
-                { status: 500 }
-            );
         }
+
+        // If all models failed
+        return NextResponse.json(
+            { error: `[V2-FETCH] All models failed. Last error: ${lastErrorText || '不明なエラー'}` },
+            { status: 500 }
+        );
 
     } catch (error: any) {
         console.error(`Unexpected Error in phase:`, error);
