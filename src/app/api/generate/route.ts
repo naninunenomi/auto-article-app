@@ -13,8 +13,13 @@ export async function POST(req: Request) {
         // Replace date variable
         const finalPrompt = prompt.replace(/\[日付\]/g, date);
 
-        const apiKey = process.env.GEMINI_API_KEY || "";
-        if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
+        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "";
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: "Vercelの環境変数 (GEMINI_API_KEY) が設定されていません。" },
+                { status: 500 }
+            );
+        }
         
         const model = "gemini-2.0-flash"; // Use the rock-solid model from ars-project
 
@@ -68,7 +73,7 @@ ${finalPrompt}
     } catch (error: any) {
         console.error(`Unexpected Error in phase:`, error);
         return NextResponse.json(
-            { error: "内部サーバーエラーが発生しました。" },
+            { error: `[Outer Error] ${error.message || "内部サーバーエラーが発生しました。"}` },
             { status: 500 }
         );
     }
