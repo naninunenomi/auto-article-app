@@ -69,7 +69,7 @@ export async function POST(req: Request) {
         const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         
         console.log(`[Phase ${phase}] 成功しました。`);
-        return NextResponse.json({ text: generatedText });
+        return NextResponse.json({ result: generatedText });
 
     } catch (error: any) {
         console.error(`Unexpected Error in phase:`, error);
