@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
         try {
             const response = await genAI.models.generateContent({
-                model: "gemini-flash-latest",
+                model: "gemini-3-flash-preview",
                 contents: [
                     {
                         role: 'user',
