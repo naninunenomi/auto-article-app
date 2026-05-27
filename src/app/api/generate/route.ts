@@ -22,7 +22,7 @@ export async function POST(req: Request) {
             );
         }
         
-        const model = "gemini-3-flash-preview";
+        const model = "gemini-3.5-flash";
         
         // 1. tools の定義 (Phase 1 のみ Google検索グラウンディング)
         const tools = phase === 1 ? [{ googleSearch: {} }] : undefined;
