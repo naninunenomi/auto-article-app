@@ -65,8 +65,6 @@ ${finalPrompt}
             );
         }
 
-        return NextResponse.json({ result: resultText });
-
     } catch (error: any) {
         console.error(`Unexpected Error in phase:`, error);
         return NextResponse.json(
