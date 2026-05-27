@@ -38,7 +38,7 @@ export async function POST(req: Request) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ role: 'user', parts: [{ text: `
+                        contents: [{ parts: [{ text: `
 以下の入力データを元に、指示に従ってタスクを実行してください。
 
 【入力データ】
@@ -47,17 +47,7 @@ ${input}
 【指示】
 ${finalPrompt}
 ` }] }],
-                        tools: tools,
-                        generationConfig: {
-                            temperature: 0.7,
-                            maxOutputTokens: 8192,
-                        },
-                        safetySettings: [
-                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                        ]
+                        tools: tools
                     })
                 });
 
