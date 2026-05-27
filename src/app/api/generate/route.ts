@@ -64,7 +64,7 @@ ${finalPrompt}
         } catch (error: any) {
             console.error(`Gemini API Error details in phase ${phase}:`, error);
             return NextResponse.json(
-                { error: `Gemini API Error (${phase}): ${error.message || '不明なエラー'}` },
+                { error: `[V2-FETCH] Gemini API Error (${phase}): ${error.message || '不明なエラー'}` },
                 { status: 500 }
             );
         }
