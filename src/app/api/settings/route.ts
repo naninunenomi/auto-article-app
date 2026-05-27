@@ -8,8 +8,11 @@ const PROMPTS_KEY = "app_prompts";
 export async function GET() {
     try {
         const prompts = await kv.get(PROMPTS_KEY);
-        // Return explicit 200 with data or null
-        return NextResponse.json({ prompts: prompts || null });
+        // Return explicit 200 with data or null, and force no-cache headers to prevent Vercel Edge caching
+        return NextResponse.json(
+            { prompts: prompts || null },
+            { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+        );
     } catch (error: any) {
         console.error("Failed to get prompts from KV:", error);
         return NextResponse.json({ error: "Failed to fetch prompts" }, { status: 500 });
