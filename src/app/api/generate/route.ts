@@ -15,18 +15,21 @@ export async function POST(req: Request) {
         }
 
         // Replace date variable
-        const finalPrompt = prompt.replace(/\\[日付\\]/g, date);
+        const finalPrompt = prompt.replace(/\[日付\]/g, date);
 
-        let resultText = "";
+        const apiKey = process.env.GEMINI_API_KEY || "";
+        if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
+        
+        const model = "gemini-2.0-flash"; // Use the rock-solid model from ars-project
+
+        const tools = phase === 1 ? [{ googleSearchRetrieval: {} }] : undefined;
 
         try {
-            const response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: [
-                    {
-                        role: 'user',
-                        parts: [{
-                            text: `
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: `
 以下の入力データを元に、指示に従ってタスクを実行してください。
 
 【入力データ】
@@ -34,27 +37,34 @@ ${input}
 
 【指示】
 ${finalPrompt}
-` }]
-                    }
-                ],
-                config: {
-                    temperature: 0.7,
-                    maxOutputTokens: 8192,
-                    tools: phase === 1 ? [{ googleSearch: {} }] : undefined,
+` }] }],
+                    tools: tools,
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 8192,
+                    },
                     safetySettings: [
-                        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
                     ]
-                }
+                })
             });
 
-            resultText = response.text || "";
-        } catch (genAiError: any) {
-            console.error(`Gemini API Error details in phase ${phase}:`, genAiError);
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Gemini API Error: ${errText}`);
+            }
+
+            const data = await res.json();
+            const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+            return NextResponse.json({ text: generatedText });
+        } catch (error: any) {
+            console.error(`Gemini API Error details in phase ${phase}:`, error);
             return NextResponse.json(
-                { error: `Gemini API Error (${phase}): ${genAiError.message || '不明なエラー'}` },
+                { error: `Gemini API Error (${phase}): ${error.message || '不明なエラー'}` },
                 { status: 500 }
             );
         }
