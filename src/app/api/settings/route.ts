@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
 
+export const dynamic = "force-dynamic";
+
 const PROMPTS_KEY = "app_prompts";
 
 export async function GET() {
