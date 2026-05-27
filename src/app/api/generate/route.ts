@@ -12,7 +12,7 @@ export async function POST(req: Request) {
         }
 
         // Replace date variable
-        const finalPrompt = prompt.replace(/\[日付\]/g, date);
+        const finalPrompt = prompt.replace(/\[日付\]/g, date || "");
 
         const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "";
         if (!apiKey) {
@@ -22,40 +22,43 @@ export async function POST(req: Request) {
             );
         }
         
-        // Gemini 3系の最新ペイロード仕様に準拠
         const model = "gemini-3-flash-preview";
         
-        // 旧 googleSearchRetrieval から最新の googleSearch への変更
+        // 1. tools の定義 (Phase 1 のみ Google検索グラウンディング)
         const tools = phase === 1 ? [{ googleSearch: {} }] : undefined;
+
+        // 2. リクエストボディの基本構造を作成
+        const requestBody: any = {
+            contents: [{ 
+                parts: [{ 
+                    text: `以下の入力データを元に、指示に従ってタスクを実行してください。\n\n【入力データ】\n${input}\n\n【指示】\n${finalPrompt}` 
+                }] 
+            }],
+            tools: tools
+        };
+
+        // 3. 【修正点】Deep Researchが必要な Phase 1 のみに限定して付与する
+        // ※Geminiの公式API仕様では、thinkingConfigは必ず generationConfig の「中」に配置する必要があります
+        if (phase === 1) {
+            requestBody.generationConfig = {
+                thinkingConfig: {
+                    thinkingBudget: 1024
+                }
+            };
+        }
 
         console.log(`[Phase ${phase}] 実行開始... モデル: ${model}`);
 
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: `
-以下の入力データを元に、指示に従ってタスクを実行してください。
-
-【入力データ】
-${input}
-
-【指示】
-${finalPrompt}
-` }] }],
-                tools: tools,
-                // Deep Research（深層リサーチ）用の思考プロセス設定を追加
-                generationConfig: {
-                    thinkingConfig: { thinkingBudget: 1024 }
-                }
-            })
+            body: JSON.stringify(requestBody) // 修正した構造を送信
         });
 
         if (!res.ok) {
             const errText = await res.text();
             console.error(`[Phase ${phase}] API仕様エラー（生レスポンス）:`, errText);
             
-            // 400エラー等のAPI仕様不整合や、429の一時制限エラーをフロントエンドへ詳細に返却
             return NextResponse.json(
                 { error: `[V2-FETCH] Gemini API Error (${res.status}): ${errText}` },
                 { status: res.status }
