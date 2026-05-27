@@ -134,11 +134,8 @@ export default function Home() {
               inputForPhase = `【リサーチ結果】\n${resultsRef["phase1"]}\n\n【無料版記事】\n${resultsRef["phase2"]}`;
               break;
             case 4:
-              console.log("Phase 4: Optimization - Joining results without AI call.");
-              const combinedContent = `${resultsRef["phase2"] || ""}\n\n---\n\n${resultsRef["phase3"] || ""}`;
-              resultsRef[`phase${i}`] = combinedContent;
-              setResults(prev => ({ ...prev, [`phase${i}`]: combinedContent }));
-              continue; 
+              inputForPhase = `【無料版記事】\n${resultsRef["phase2"]}\n\n【有料版記事】\n${resultsRef["phase3"]}`;
+              break; 
             case 5:
               inputForPhase = `【結合済み記事】\n${resultsRef["phase4"]}`;
               break;

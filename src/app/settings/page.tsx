@@ -11,7 +11,7 @@ const DEFAULT_PROMPTS = {
     phase1: "指定日時「[日付]」と以下のピックアップニュースを元に、Deep Researchを行い、事実確認と詳細な背景を調査してください。",
     phase2: "以下のリサーチ資料（Phase 1）を元に、note掲載用の【無料版記事】を作成してください。",
     phase3: "以下のリサーチ資料と「無料版記事」の続きとして、【有料版記事】を作成してください。",
-    phase4: "※このフェーズはプログラムによる自動結合のため、AIプロンプトは使用されません（コスト削減の最適化）。",
+    phase4: "無料版と有料版を結合し、指定の注意書きに従って全体のフォーマットを整えてください。",
     phase5: "以下の無料・有料結合済み原稿について、誤字脱字やトーンマナーを校正し、note用のHTML装飾（h2, strong, ul等）を付与してください。",
     phase6: "以下の校正済み原稿を元に、プロモーションするためのX（Twitter）投稿文を作成してください。",
     phase7: "以下の記事内容を元に、Podcast用のタイトルと説明文を作成してください。",
@@ -176,8 +176,7 @@ export default function SettingsPage() {
                                     <textarea
                                         value={value}
                                         onChange={(e) => handleChange(key, e.target.value)}
-                                        readOnly={activeTab === 'news' && key === 'phase4'}
-                                        className={`w-full h-32 bg-transparent text-neutral-200 outline-none resize-none p-3 text-sm ${activeTab === 'news' && key === 'phase4' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className="w-full h-32 bg-transparent text-neutral-200 outline-none resize-none p-3 text-sm"
                                     />
                                 </div>
                             </div>
