@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
     try {
-        const { phase, input, prompt, date } = await req.json();
+        const { phase, input, prompt, date, modelName } = await req.json();
 
         if (!prompt) {
             return NextResponse.json(
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
             );
         }
         
-        const model = "gemini-3-flash-preview";
+        const model = modelName || "gemini-3-flash-preview";
         
         // 1. tools の定義 (Phase 1 のみ Google検索グラウンディング)
         const tools = phase === 1 ? [{ googleSearch: {} }] : undefined;

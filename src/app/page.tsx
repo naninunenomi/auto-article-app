@@ -18,6 +18,7 @@ export default function Home() {
   const [targetDate, setTargetDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [keyword, setKeyword] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-3-flash-preview");
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPhase, setCurrentPhase] = useState(0);
@@ -175,7 +176,8 @@ export default function Home() {
               pattern: pattern,
               input: inputForPhase,
               prompt: promptText,
-              date: targetDate
+              date: targetDate,
+              modelName: selectedModel
             })
           });
 
@@ -244,6 +246,25 @@ export default function Home() {
       </header>
 
       <main className="px-6 py-8 max-w-md mx-auto space-y-8">
+
+        {/* Model Selector */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-500/20 text-teal-400 text-xs font-bold">M</span>
+            <h2 className="text-lg font-semibold">使用モデルの選択</h2>
+          </div>
+          <select 
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-neutral-100 font-bold focus:outline-none focus:border-teal-500 transition-colors"
+          >
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (推奨 / ars-project稼働中)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (制限強)</option>
+            <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+            <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash</option>
+          </select>
+        </section>
 
         {/* Pattern Selector */}
         <section className="space-y-4">
