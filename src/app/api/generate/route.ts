@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
         // 3. 【修正点】Deep Researchが必要な Phase 1 のみに限定して付与する
         // ※Geminiの公式API仕様では、thinkingConfigは必ず generationConfig の「中」に配置する必要があります
-        if (phase === 1) {
+        if (phase === 1 && model.includes("gemini-3")) {
             requestBody.generationConfig = {
                 thinkingConfig: {
                     thinkingBudget: 1024
