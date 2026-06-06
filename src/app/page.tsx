@@ -36,6 +36,24 @@ export default function Home() {
     document.body.removeChild(element);
   };
 
+  const downloadAllDocs = () => {
+    let content = "";
+    phases.forEach(p => {
+      if (results[`phase${p.id}`]) {
+        content += `====================================================\n`;
+        content += `【Phase ${p.id}: ${p.name}】\n`;
+        content += `====================================================\n\n`;
+        content += results[`phase${p.id}`] + "\n\n\n";
+      }
+    });
+    if (!content) {
+      alert("ダウンロードする結果がありません。");
+      return;
+    }
+    const filename = `${pattern}_${format(new Date(), "yyyyMMdd_HHmmss")}.txt`;
+    downloadTxt(filename, content);
+  };
+
   const getPhases = (pat: PatternType) => {
     if (pat === 'news') {
       return [
@@ -379,10 +397,19 @@ export default function Home() {
         {/* Results UI */}
         {currentPhase === 10 && Object.keys(results).length > 0 && (
           <section id="results-section" className="space-y-4 pt-4 border-t border-neutral-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-lg font-bold text-teal-400 flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5" />
-              生成完了
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-teal-400 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5" />
+                生成完了
+              </h2>
+              <button 
+                onClick={downloadAllDocs}
+                className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-bold rounded-xl transition-colors border border-neutral-700"
+              >
+                <Download className="w-4 h-4" />
+                全結果をまとめて保存
+              </button>
+            </div>
 
             {/* Tabs */}
             <div className="flex overflow-x-auto pb-2 gap-2 snap-x scrollbar-hide">

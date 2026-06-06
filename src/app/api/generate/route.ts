@@ -30,6 +30,7 @@ export async function POST(req: Request) {
         // 2. リクエストボディの基本構造を作成
         const requestBody: any = {
             contents: [{ 
+                role: "user",
                 parts: [{ 
                     text: `以下の入力データを元に、指示に従ってタスクを実行してください。\n\n【入力データ】\n${input}\n\n【指示】\n${finalPrompt}` 
                 }] 
@@ -49,27 +50,50 @@ export async function POST(req: Request) {
 
         console.log(`[Phase ${phase}] 実行開始... モデル: ${model}`);
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody) // 修正した構造を送信
-        });
+        let fullText = "";
+        let isDone = false;
+        let loopCount = 0;
+        const MAX_LOOPS = 4;
 
-        if (!res.ok) {
-            const errText = await res.text();
-            console.error(`[Phase ${phase}] API仕様エラー（生レスポンス）:`, errText);
+        while (!isDone && loopCount < MAX_LOOPS) {
+            loopCount++;
+
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody) // 修正した構造を送信
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`[Phase ${phase}] API仕様エラー（生レスポンス）:`, errText);
+                
+                return NextResponse.json(
+                    { error: `[V2-FETCH] Gemini API Error (${res.status}): ${errText}` },
+                    { status: res.status }
+                );
+            }
+
+            const data = await res.json();
+            const candidate = data.candidates?.[0];
+            const generatedText = candidate?.content?.parts?.[0]?.text || "";
+            const finishReason = candidate?.finishReason;
             
-            return NextResponse.json(
-                { error: `[V2-FETCH] Gemini API Error (${res.status}): ${errText}` },
-                { status: res.status }
-            );
-        }
+            fullText += generatedText;
 
-        const data = await res.json();
-        const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (finishReason === "MAX_TOKENS" && loopCount < MAX_LOOPS) {
+                console.log(`[Phase ${phase}] MAX_TOKENS到達 (Loop ${loopCount})。続きをリクエストします...`);
+                // Append model's response
+                requestBody.contents.push({ role: "model", parts: [{ text: generatedText }] });
+                // Append prompt to continue
+                requestBody.contents.push({ role: "user", parts: [{ text: "出力が文字数制限で途切れています。直前の文章の続きから、省略せずにそのまま出力を継続してください。" }] });
+            } else {
+                isDone = true;
+            }
+        }
         
-        console.log(`[Phase ${phase}] 成功しました。`);
-        return NextResponse.json({ result: generatedText });
+        console.log(`[Phase ${phase}] 成功しました。ループ回数: ${loopCount}`);
+        return NextResponse.json({ result: fullText });
 
     } catch (error: any) {
         console.error(`Unexpected Error in phase:`, error);
