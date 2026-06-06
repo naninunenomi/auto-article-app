@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import Link from 'next/link';
 import {
   FileText, Calendar, Play, Settings, CheckCircle2,
-  Loader2, FileCheck2, Mic, Twitter, Search, Hash, AlignLeft
+  Loader2, FileCheck2, Mic, Twitter, Search, Hash, AlignLeft, Download
 } from "lucide-react";
 
 type PatternType = 'news' | 'keyword_current' | 'keyword_biz';
