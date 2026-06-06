@@ -76,8 +76,10 @@ export async function POST(req: Request) {
 
             const data = await res.json();
             const candidate = data.candidates?.[0];
-            const generatedText = candidate?.content?.parts?.[0]?.text || "";
+            const generatedText = candidate?.content?.parts?.map((p: any) => p.text || "").join("") || "";
             const finishReason = candidate?.finishReason;
+            
+            console.log(`[Phase ${phase}] Loop ${loopCount} finishReason: ${finishReason}`);
             
             fullText += generatedText;
 
