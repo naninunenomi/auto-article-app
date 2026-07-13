@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
-// この処理を最大800秒（約13分）まで待つ。Phase3の長文生成が5分の壁で
-// 強制終了(504 FUNCTION_INVOCATION_TIMEOUT)されるのを防ぐため。
-// ※800秒を有効にするにはVercelの「Fluid Compute」をオンにする必要があります。
-export const maxDuration = 800;
+// この処理の最大待ち時間（秒）。現在のプラン上限である300秒に設定。
+// ※「Fluid Compute」をオンにすれば最大800秒まで延ばせる。
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
     try {
