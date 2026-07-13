@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+// この処理を最大800秒（約13分）まで待つ。Phase3の長文生成が5分の壁で
+// 強制終了(504 FUNCTION_INVOCATION_TIMEOUT)されるのを防ぐため。
+// ※800秒を有効にするにはVercelの「Fluid Compute」をオンにする必要があります。
+export const maxDuration = 800;
+
 export async function POST(req: Request) {
     try {
         const { phase, input, prompt, date, modelName } = await req.json();
@@ -38,12 +43,14 @@ export async function POST(req: Request) {
             tools: tools
         };
 
-        // 3. 【修正点】Deep Researchが必要な Phase 1 のみに限定して付与する
-        // ※Geminiの公式API仕様では、thinkingConfigは必ず generationConfig の「中」に配置する必要があります
-        if (phase === 1 && model.includes("gemini-3")) {
+        // 3. thinking（考える機能）の制御。
+        // gemini-3系は既定で「考えてから書く」ため生成が遅く、長文のPhase3が
+        // タイムアウトしやすい。調べ物が必要なPhase1だけ考えさせ、
+        // 記事を書くだけのPhase2以降は思考をオフ(0)にして高速化する。
+        if (model.includes("gemini-3")) {
             requestBody.generationConfig = {
                 thinkingConfig: {
-                    thinkingBudget: 1024
+                    thinkingBudget: phase === 1 ? 1024 : 0
                 }
             };
         }
